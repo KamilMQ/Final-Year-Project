@@ -55,7 +55,6 @@ String message; //Stores the SMS message
 void setup()
 {
   Serial.begin(9600); //Init the arduino at 9600 baud rate
-  EEPROM.write(FIRSTTIME,0);
   if(EEPROM.read(FIRSTTIME) == 0){
     EEPROM.write(MAXTEMP,30);
     EEPROM.write(MINTEMP,26);
@@ -107,11 +106,22 @@ void checkSMS(){
        if (EEPROM.read(0) == 0){
         pairNum();
        } else {
-        command(message); 
+        Serial.print("The owner number: ");
+        Serial.println(ownerNumber);
+        Serial.print("The sender number: ");
+        Serial.println(senderNumber);
+        bool correctNum = true;
+        for (int i = 0; i<= EEPROM.read(0); i++){
+          if (senderNumber[i] != ownerNumber[i]){
+            correctNum = false;
+          }
+        }
+        if (correctNum){
+          command(message); 
+        }
        }
        
-       Serial.println(senderNumber[5]);
-       Serial.println(ownerNumber[5]);
+
        sms.flush();
        message = "";
     }
@@ -151,6 +161,13 @@ void initValues(){
   maxTemp = EEPROM.read(MAXTEMP);
   minTemp = EEPROM.read(MINTEMP);
   interval = 1000 *  EEPROM.read(TIMER);
+  int numLength;
+  numLength = EEPROM.read(0);
+  if (numLength > 0) { 
+   for (int i = 0; i<=numLength; i++) {
+       ownerNumber[i] = EEPROM.read((i+1));
+     }
+  }
 }
 
 void reset(){
@@ -202,7 +219,7 @@ void checkCommand(){
 // concept. If the project ever grows this should be refactored.
 void command(String inst){  
   bool validCommand = false;
-  
+  Serial.println("Choices");
   if (inst == "RADON") {
     if (radOn == false){
       radiatorOn();
@@ -232,7 +249,8 @@ void command(String inst){
   } else {
     String temp = inst;
     int pinUsed;
-    temp.remove(2); // Allows me to check the first three characters
+    temp.remove(3); // Allows me to check the first three characters
+    Serial.println(temp);
     if(temp == "MAX"){
       inst.remove(0,3); //Removes the first 3 letters to leave 
       pinUsed = MAXTEMP;
@@ -251,11 +269,16 @@ void command(String inst){
     if (validCommand = true){
       if (digitChecker(inst) == true) {
         int value = inst.toInt();
+        Serial.print("pin used ");
+        Serial.print(pinUsed);
+        Serial.print("value");
+        Serial.println(value);
         EEPROM.write(pinUsed,value);
       } else {
         validCommand = false;
       }
     }
+    initValues();
   }
 
   if (validCommand == false){
@@ -285,6 +308,7 @@ void valueSaver(int pin, int value) {
 //Will only ever run if status was manually changed, therefore has no effect
 // if the command to turn rad on/off was redundant. 
 void disableManual(){
+  Serial.println("Disable Manual");
   if (radOn == false){
       radiatorOff();  
     }
@@ -308,6 +332,9 @@ void numberSave(){
   for (int i = 0; i<=numLength; i++) {
     EEPROM.write((i+1),senderNumber[i]);
     Serial.print(senderNumber[i]);
+    for (int i = 0; i<=numLength; i++) {
+      ownerNumber[i] = EEPROM.read((i+1));
+    }
   }
   Serial.println(" Complete!");
 }
@@ -330,18 +357,34 @@ void checkTemp(float temp){
       } 
       else if (radOn == true) {
         Serial.println("On");
+        Serial.println("Off");
+        Serial.print("The temp is:");
+        Serial.print(temp);
+        Serial.print(" And we want it to be between: ");
+        Serial.print(minTemp);
+        Serial.print(" & ");
+        Serial.println(maxTemp);
       }
     }
   else if (temp >= maxTemp) {
     //Serial.println("Radiator Off!");
     if (radOn == true){
       radiatorOff();
+      Serial.println("Off");
+      Serial.print("The temp is:");
+      Serial.print(temp);
+      Serial.print(" And we want it to be between: ");
+      Serial.print(minTemp);
+      Serial.print(" & ");
+      Serial.println(maxTemp);
       } 
       else if (radOn == false){
         Serial.println("Off");
         Serial.print("The temp is:");
         Serial.print(temp);
-        Serial.print(" And we want it to be: ");
+        Serial.print(" And we want it to be between: ");
+        Serial.print(minTemp);
+        Serial.print(" & ");
         Serial.println(maxTemp);
       }
   } 
@@ -349,7 +392,6 @@ void checkTemp(float temp){
 
 //Turns the radiator on and sends appropriate debug message
 void radiatorOn(){
-  //Serial.println("On1");
   digitalWrite(rad,HIGH); //Turn radiator On
   radOn = true;
   //Serial.println("RadOn");
